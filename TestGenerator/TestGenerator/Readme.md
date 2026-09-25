@@ -4,7 +4,7 @@ A set of three sample projects that includes Roslyn analyzers with code fix prov
 
 ## Content
 ### TestGenerator
-A .NET Standard project with implementations of sample analyzers and code fix providers.
+A .NET Standard project with implementations of sample analyzers and code fix providers.[AGENTS.md](../../AGENTS.md)
 **You must build this project to see the results (warnings) in the IDE.**[.gitignore](../../.gitignore)
 
 - [SampleSemanticAnalyzer.cs](SampleSemanticAnalyzer.cs): An analyzer that reports invalid values used for the `speed` parameter of the `SetSpeed` function.

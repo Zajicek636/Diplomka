@@ -1,0 +1,34 @@
+{
+  "$comment": "Ruční přepis EA diagramu (Dokument.ea.png) do AnalysisModel. Nahradí ho XMI export, až bude dostupný.",
+  "source": { "kind": "EA-diagram-transcript", "file": "Dokument.ea.png" },
+  "classes": [
+    {
+      "name": "Dokument",
+      "stereotype": null,
+      "attributes": [
+        { "name": "kód účetní jednotky",        "type": "string", "length": 10,   "multiplicity": "1" },
+        { "name": "id",                         "type": "int",                    "multiplicity": "1" },
+        { "name": "datum vyřízení",             "type": "date",                   "multiplicity": "1" },
+        { "name": "datum uložení",              "type": "date",                   "multiplicity": "1" },
+        { "name": "id dokladu",                 "type": "int",                    "multiplicity": "1" },
+        { "name": "číslo dokladu",              "type": "string",                 "multiplicity": "1" },
+        { "name": "typ dokumentu",              "type": "int",                    "multiplicity": "1" },
+        { "name": "typ dokumentu - název",      "type": "string", "length": 255,  "multiplicity": "1" },
+        { "name": "typ dokumentu - označení",   "type": "string", "length": 255,  "multiplicity": "1" },
+        { "name": "název",                      "type": "string", "length": 1000, "multiplicity": "1" },
+        { "name": "subjekt",                    "type": "string", "length": 500,  "multiplicity": "1" },
+        { "name": "id položky SSP",             "type": "int",                    "multiplicity": "0..1" },
+        { "name": "popis",                      "type": "string", "length": 4000, "multiplicity": "1" },
+        { "name": "spisový znak",               "type": "string", "length": 30,   "multiplicity": "1" },
+        { "name": "skartační znak",             "type": "string", "length": 1,    "multiplicity": "1" },
+        { "name": "skartační lhůta",            "type": "int",                    "multiplicity": "1" },
+        { "name": "trvalý skartační souhlas",   "type": "bool",                   "multiplicity": "1" },
+        { "name": "uložil",                     "type": "string", "length": 60,   "multiplicity": "1" }
+      ],
+      "constraints": [
+        { "raw": "{if trvalý-skart-souhlas == true then skartační-znak = S}", "kind": "Implication" },
+        { "raw": "{UQ: kód účetní jednotky, id dokladu}",                    "kind": "UniqueKey" }
+      ]
+    }
+  ]
+}

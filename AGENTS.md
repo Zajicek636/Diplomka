@@ -26,11 +26,14 @@ Cílem je nástroj (Roslyn), který:
 | Cesta | Význam | Pravidla |
 |---|---|---|
 | `C:\Dimplomka` (tento repozitář) | Zdrojáky nástroje, dokumentace, experimenty | Sem se píše. |
-| `C:\CFI - Mono\Dynatech.CFI\src\modules\Ulozna` | **Referenční cílový kód** (ABP modul Úložna) | **Pouze pro čtení.** Nic neměnit, necommitovat. |
+| `C:\CFI - Mono` | Mono-repo CFI (ABP 8.1.1, .NET 8) – kontext pro reference (`framework/`, `SequencesManagement`, `TestHelper`) | **Pouze pro čtení.** Jeho `AGENTS.md`/`CLAUDE.md` neměnit. |
+| `C:\CFI - Mono\Dynatech.CFI\src\modules\Ulozna` | **Testovací řešení** (`Dynatech.Ulozna.sln`) – první cíl nástroje | **Pouze pro čtení.** Nic neměnit, necommitovat. |
 
 Poznámky k Úložně:
 
-- Úložna je modul v mono-repu CFI. Projekty referencují soubory **mimo modul** (`..\..\..\..\framework\...`, `..\..\..\SequencesManagement\...`, `common.props`). Pro plný sémantický model je nutné otevírat řešení v kontextu celého mono-repa (nebo použít zkompilované DLL z `bin/`).
+- Úložna je jen **první testovací řešení**. Cílem je nástroj použitelný pro **všechny ABP moduly** (v CFI je jich ~25 se stejnou strukturou vrstev) – nic nesmí být natvrdo pro Úložnu (viz §9a).
+- Projekty referencují soubory **mimo modul** (`..\..\..\..\framework\...`, `..\..\..\SequencesManagement\...`, `common.props`). Proto se řešení modulu otevírá **na místě v mono-repu** (`C:\CFI - Mono\...`), ne jako kopie.
+- Vygenerované testy, které mají skončit v CFI, musí dodržet pravidla z `C:\CFI - Mono\AGENTS.md` (viz §7).
 - `appsettings.secrets.json` a connection stringy **nečíst, nekopírovat, necitovat**.
 - Existující ruční testy (`test/Dynatech.Ulozna.Domain.Tests`, `test/Dynatech.Ulozna.Application.Tests`) jsou **baseline pro porovnání** – generátor je nesmí přepsat. Generované testy jdou do samostatné složky/projektu (viz §7).
 
@@ -128,8 +131,18 @@ Principy:
 Stavy párování jsou klíčové pro vyhodnocení:
 
 - **Confirmed** – pravidlo je v analýze i v kódu → plný test.
-- **AnalysisOnly** – pravidlo je v analýze, v kódu chybí → test, který **má selhat** (odhalený rozpor) nebo kostra s `Skip` a TODO.
-- **CodeOnly** – v kódu je kontrola, analýza o ní mlčí → test podle kódu, v reportu označit.
+- **AnalysisOnly** – pravidlo je v analýze, v kódu chybí → **plný test podle analýzy, který padá**, dokud se kód neopraví (ne `Skip`, ne TODO).
+- **Conflict** – analýza i kód pravidlo mají, ale liší se (délka, povinnost, typ) → test podle **analýzy**, padá.
+- **CodeOnly** – v kódu je kontrola, analýza o ní mlčí → test podle kódu (charakterizační, prochází), v reportu jako podnět pro analytika.
+
+**Zdroj pravdy je analýza (EA)** – viz R7. Moduly nejsou dokončené, padající test = nedodělek/chyba v kódu, ne chyba generátoru.
+
+Pravidla pro padající testy:
+
+- Vygenerovaný projekt se musí **vždy zkompilovat**. Chybí-li v kódu člen z analýzy (např. `Soubor.BlobJeUlozen`), test na něj nesmí způsobit chybu kompilace → ověření přes reflexi/`dynamic` (`typeof(Soubor).GetProperty(...).ShouldNotBeNull()`), případně test přes existující API, který selže za běhu.
+- Každý test nese `[Trait("TestGenStatus", "Confirmed|AnalysisOnly|Conflict|CodeOnly")]` → v reportu i v CI jde odlišit „známé mezery vůči specifikaci“ od regresí.
+- Zpráva selhání odkazuje na pravidlo z analýzy (ID intentu + text constraintu), aby vývojář věděl, co opravit.
+- Jakmile kód pravidlo splní, test začne procházet bez zásahu – nový běh generátoru ho nepřegeneruje jinak (stav se v manifestu přepne na `Confirmed`).
 - **Ambiguous** – nejasné mapování → kostra, případně LLM návrh.
 
 ---
@@ -143,6 +156,26 @@ Stavy párování jsou klíčové pro vyhodnocení:
   - **A – strukturovaná**: XMI s atributy, multiplicitami, tagged values (maxLength) a constrainty.
   - **B – málo strukturovaná**: stejný obsah jako volný text (poznámky v EA / Markdown dokument).
 - Ukázkové vstupy pro Úložnu ukládat do `docs/input-samples/ulozna/` (A i B nad stejnými pravidly, aby šly porovnat).
+
+### 5.1 Notace EA v Dynatechu (zjištěno z diagramu *Úložna - Domain model*)
+
+Zdroj: `docs/input-samples/ulozna/variant-A/Ulozna-DomainModel.ea.png`, přepis `Ulozna.analysis.json`, gold porovnání s kódem `Ulozna.mapping.md` (soubory `Dokument.*` jsou starší dílčí verze). XMI export zatím není k dispozici → do té doby se pracuje s ručně přepsaným JSON ve formátu AnalysisModel (parser XMI se pak jen „přišroubuje“ před něj).
+
+- Atributy: české názvy s mezerami a diakritikou (`kód účetní jednotky`, `typ dokumentu - název`).
+- Typy: `string(n)` = max. délka, `string` bez délky = délka neznámá, `date`, `int`, `bool`; multiplicita `[0..1]` = nepovinné (→ `int?`).
+- Constrainty v sekci *constraints* jako pseudo-OCL ve složených závorkách:
+  - implikace `{if <atr> == <hodnota> then <atr> = <hodnota>}` – jména atributů zkrácená a s pomlčkami (`trvalý-skart-souhlas`),
+  - unikátní klíč `{UQ: <atr>, <atr>}`.
+- Rozdíly vůči kódu, se kterými musí Linking počítat: zkratky (`účetní jednotka` → `Uj`), FK bez slova „id“ (`typ dokumentu` → `IdTypuDokumentu`), přeházené pořadí slov (`typ dokumentu - název` → `NazevTypuDokumentu`), jiný typ (`skartační znak: string(1)` × enum `SkartacniZnak`).
+- Stereotypy: `«enumeration»` (literály `KÓD - popis`, např. `A - archivace`), `«conceptual»` = jen pojem, **neřešit**.
+- Prefix `CRO:` (obecně `<Systém>:`) = třída externího systému → neřešit, jen jako cíl „weak ref“ (závislost s popiskem `weak ref: …`).
+- Vazby: asociace s multiplicitami (`1 → 1..*`, `0..* → 0..1`), kompozice (◆ = hranice agregátu), agregace, závislost (weak ref). Šipky jsou navigační.
+- Poznámky obsahují otevřené otázky analytika („metadata?“, „hash nebo p7s?“) → do reportu, ne do testů.
+- Default hodnoty: `bool = false`.
+- Párování jmen: normalizace diakritiky → tokenizace → porovnání **množin tokenů** + **glosář** (per organizace/modul, viz §9a).
+- `UQ` constrainty patří do perzistence (integrační testy, F3) – u `Dokument` v kódu ani v EF konfiguraci unikátní index není ⇒ `AnalysisOnly`.
+- **Klíčové zjištění:** doménový diagram popisuje hlavně strukturu. Ze 16 pravidel v `Ulozna.mapping.md` §3 je v EA jen 8; chování (unikátní spisový znak v plánu, od ≤ do, nepřekrývání plánů, AddSoubor/RemoveSoubor) je jen v kódu (`CodeOnly`). Varianta B (text/use casy) musí dodat hlavně pravidla chování.
+- Enumy `SkartacniZnak`, `TypSouboru` jsou z privátního NuGetu `Dynatech.Shared.ULO` → sémantický model vyžaduje restore z privátního feedu (jinak fallback na literály z EA).
 
 ---
 
@@ -169,6 +202,8 @@ Známé chyby/podezření v kódu, které mají testy odhalit (pro kapitolu vyho
 - `SetPlatnost`: `platnostDo != null` u `DateTime` (ne-nullable) je vždy `true`.
 - `SpisovyASkartacniPlan.Polozky` není inicializováno v konstruktoru (`AddPolozka` na nové instanci → `NullReferenceException`), na rozdíl od `Dokument.Soubory`.
 - `Dokument.AddSoubor` – zpráva obsahuje `${id}` (JS syntaxe v C# interpolaci).
+- EA `{UQ: kód účetní jednotky, id dokladu}` nemá v kódu ani v EF konfiguraci protějšek (chybí unikátní index).
+- EA `číslo dokladu: string` bez délky, kód má max 50 (`MAX_CISLO_DOKLADU_CRO_LENGTH`) – nekonzistence dokumentace.
 
 ---
 
@@ -185,7 +220,9 @@ Generátor musí umět **profily konvencí**; první profil kopíruje styl exist
 
 Výstup:
 
-- Každý soubor začíná hlavičkou `// <auto-generated by TestGen>` + verze nástroje + ID intentů.
+- **CFI zakazuje komentáře v kódu** → traceability se nedává do komentářů, ale do atributu `[Trait("TestGen", "<intent-id>")]` u každého testu a do sidecar souboru `testgen.manifest.json` (intent → test → zdroj v EA/kódu, verze nástroje, hash vstupů). Generický profil může mít hlavičku `// <auto-generated>`.
+- Vygenerovaný projekt je oddělený od ručních testů; v CI se padající testy `AnalysisOnly`/`Conflict` odfiltrují traitem (R8), takže neblokují PR.
+- Commity do CFI dělá člověk podle pravidel CFI (`#NNNN feat: ...`, jen předmět, žádné AI trailery). Nástroj do CFI necommituje.
 - Generuje se do `experiments/ulozna/out/<run-id>/` a pro ověření se kopíruje do **samostatného** projektu `Dynatech.Ulozna.Domain.GeneratedTests` (ne do ručních testů).
 - Kromě plného profilu podporovat i **generický profil** (čistý xUnit + Shouldly bez interních knihoven) kvůli přenositelnosti.
 
@@ -210,6 +247,30 @@ Výstup:
 - Používat **sémantický model** (`SemanticModel`, `ISymbol`) – ne jen textové hledání: rozpoznat `CustomCheck.NotNull` podle symbolu, vyhodnotit konstanty (`GetConstantValue`), bázové třídy ABP přes `INamedTypeSymbol.BaseType`.
 - Detektory psát jako samostatné třídy (`IGuardDetector`), aby šel katalog pravidel rozšiřovat (ABP `Check.*`, FluentValidation, DataAnnotations, …).
 - Verze Roslynu: `Microsoft.CodeAnalysis.CSharp.Workspaces` 4.x (aktuální stabilní), sjednotit napříč projekty (Directory.Packages.props).
+
+---
+
+## 9a. Nasazení do všech ABP modulů (přenositelnost)
+
+Cíl: generátor jde „zapnout“ v libovolném ABP modulu bez úprav kódu nástroje.
+
+- **Distribuce**: `dotnet tool` (balíček `Dynatech.TestGen`, příkaz `dotnet testgen`), instalovatelný jako lokální nástroj do `.config/dotnet-tools.json` modulu (Úložna už tento soubor má) nebo globálně. Vnitřní feed Azure DevOps.
+- **Autodetekce vrstev ABP** podle konvence a sémantiky, ne podle cest: projekty `*.Domain`, `*.Domain.Shared`, `*.Application(.Contracts)`, `*.EntityFrameworkCore`, testovací `*.Domain.Tests`, `*.Application.Tests`, `*.TestBase`; potvrzení přes třídu `: AbpModule` a `[DependsOn]`.
+- **Konfigurace per modul**: volitelný `testgen.json` vedle `.sln` (přepisuje výchozí hodnoty):
+  ```jsonc
+  {
+ [Dokument.analysis.json](docs/input-samples/ulozna/variant-A/Dokument.analysis.json)   "solution": "Dynatech.Ulozna.sln",
+    "analysis": ["docs/ea/Ulozna.xmi"],
+    "profile": "dynatech",
+    "layers": ["domain"],
+    "glossary": "../../../testgen.glossary.json",
+    "output": { "mode": "project", "project": "test/Dynatech.Ulozna.Domain.GeneratedTests" }
+  }
+  ```
+- **Organizační profil** (`dynatech`) sdílený pro všechny moduly: znalost `CustomCheck`, `UserFriendlyException`, `ISequenceService`, `TestHelper`/FakeEntity, glosář zkratek. Profily jsou data + pluginy, ne `if (modul == "Ulozna")`.
+- **Režimy běhu**: `generate` (zapíše testy), `check` (nic nezapisuje, vrací nenulový exit kód při rozdílu analýza ↔ kód nebo zastaralých vygenerovaných testech – pro CI), `report` (jen `test-intents.json` + HTML/MD report).
+- **Idempotence**: opakovaný běh bez změny vstupů nemění soubory; ručně upravené testy se nepřepisují (hash v manifestu).
+- Ověření přenositelnosti v práci: po Úložně spustit na 1–2 dalších modulech CFI bez změny kódu nástroje (jen `testgen.json`).
 
 ---
 
@@ -243,12 +304,15 @@ Porovnání: (a) ruční testy Úložny, (b) TestGen varianta A, (c) TestGen var
 
 ## 12. Roadmapa
 
+- [x] F0 – Ukázkový vstup: celý EA doménový model Úložny + ruční přepis do AnalysisModel + gold mapování (`docs/input-samples/ulozna/variant-A/Ulozna.*`)
 - [ ] F0 – Rozhodnout osud šablony `TestGenerator/`, založit `src/TestGen.sln` se strukturou z §2
 - [ ] F0 – Ověřit načtení Úložny přes `MSBuildWorkspace` (v kontextu celého mono-repa) a vypsat diagnostiku
 - [ ] F1 – `TestGen.Core`: AnalysisModel, CodeModel, TestIntent + JSON serializace
 - [ ] F1 – `Analysis.Roslyn`: detektory D1–D6 nad entitami Úložny
 - [ ] F1 – Připravit EA model Úložny (varianta A) a textový popis (varianta B)
-- [ ] F1 – `Input.EA`: parser XMI (třídy, atributy, tagged values, constrainty)
+- [ ] F1 – `Input.EA`: nejdřív loader AnalysisModel JSON, pak parser XMI (třídy, atributy, constrainty)
+- [ ] F1 – Parser pseudo-OCL constraintů (`if … then …`, `UQ: …`) + glosář a párování jmen
+- [ ] F1 – Připravit variantu B (textový popis pravidel P1–P16) do `docs/input-samples/ulozna/variant-B/`
 - [ ] F1 – `Linking`: párování + stavy Confirmed/CodeOnly/AnalysisOnly/Ambiguous
 - [ ] F1 – `Generation`: profil „dynatech“ pro D1–D7, výstup + report
 - [ ] F1 – Gold scénáře pro doménu Úložny, první měření (kompilace, pass, coverage)
@@ -256,6 +320,7 @@ Porovnání: (a) ruční testy Úložny, (b) TestGen varianta A, (c) TestGen var
 - [ ] F2 – Stryker.NET, porovnání s ručními testy a obecným AI
 - [ ] F3 – Aplikační vrstva: use casy, `*AppService`, perzistence (ABP integrační testy, `UloznaApplicationTestBase`), AutoMapper profily
 - [ ] F3 – `TestGen.Llm` hybridní režim
+- [ ] F4 – Balíček `dotnet tool`, `testgen.json`, režim `check` do CI, ověření na dalších modulech CFI
 
 ---
 
@@ -264,11 +329,21 @@ Porovnání: (a) ruční testy Úložny, (b) TestGen varianta A, (c) TestGen var
 - **R1** (návrh): Nástroj je konzolová aplikace .NET 8 s `MSBuildWorkspace`, ne Roslyn analyzer/source generator. Důvod: potřebujeme celé řešení, externí vstup (XMI) a zápis souborů mimo kompilaci. Analyzer může být pozdější rozšíření pro IDE.
 - **R2** (návrh): Vstup z EA přes XMI 2.1 export, ne přes EA COM API (přenositelnost, běh bez EA).
 - **R3** (návrh): Deterministické jádro, LLM volitelně (§8).
+- **R4** (návrh): Distribuce jako `dotnet tool` + `testgen.json` per modul, organizační profil sdílený (§9a).
+- **R5**: Traceability generovaných testů přes `[Trait]` + `testgen.manifest.json`, ne komentáři (CFI zakazuje komentáře v kódu).
+- **R7**: **Analýza (EA) je specifikace.** Při rozporu analýza × kód se test generuje podle analýzy a má padat, dokud se kód neopraví (moduly nejsou dokončené). Kód je zdroj pravdy jen tam, kde analýza mlčí (`CodeOnly`).
+- **R8**: **CI filtruje podle traitu.** Vygenerované testy jsou v PR pipeline CFI, ale blokující běh vylučuje známé mezery vůči specifikaci:
+  `dotnet test ... --filter "TestGenStatus!=AnalysisOnly&TestGenStatus!=Conflict"`.
+  Volitelně druhý, neblokující krok (`continueOnError: true`) spustí jen `TestGenStatus=AnalysisOnly|TestGenStatus=Conflict` a publikuje je jako přehled nedodělků. Úpravu `build/pipeline-pr-test.yml` dělá tým CFI, ne nástroj. Název traitu bez tečky (`TestGenStatus`), aby šel použít ve filtru `dotnet test`.
+- **R6**: Dokud není XMI export, vstupem je ručně přepsaný AnalysisModel JSON; parser XMI bude jen další `IAnalysisSource`.
 
 ## 14. Otevřené otázky
 
-- Máme k Úložně existující model v EA, nebo ho vytvoříme pro účely experimentu? Jakou verzi EA a jaký profil/stereotypy používáte?
-- Jak se v EA zapisují validační pravidla – constrainty (OCL / text), tagged values, nebo poznámky?
-- Je dostupný celý mono-repo `Dynatech.CFI` (kvůli referencím `framework/`, `SequencesManagement`, `TestHelper`)?
+- ~~Existuje model Úložny v EA?~~ Ano (diagram `Dokument`); XMI export zatím nejde – kdy bude? Verze EA?
+- ~~Jak se zapisují pravidla?~~ Pseudo-OCL constrainty ve třídě (§5.1). Používají se i tagged values / stereotypy (Entity, AggregateRoot) nebo stavové diagramy?
+- Kde leží zdroj varianty B (málo strukturovaná analýza) – Word/Confluence/DevOps wiki?
+- ~~P4 / „blob je uložen“ – chyba, nebo záměr?~~ Analýza platí (R7) → padající testy.
+- ~~Padající vygenerované testy v CI?~~ Filtrovat podle traitu (R8).
+- Existuje firemní glosář zkratek (UJ, SSP, CRO, …), který můžeme použít jako vstup?
 - Generovat do stylu `TestHelper`/FakeEntity, nebo začít generickým profilem a styl Úložny přidat později?
 - Cílový .NET Úložny je `net8.0`, ABP 8.1.1 – nástroj držet na stejném SDK?

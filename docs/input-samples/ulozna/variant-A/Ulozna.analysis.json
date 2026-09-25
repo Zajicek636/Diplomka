@@ -1,0 +1,528 @@
+{
+  "$comment": "Ruční přepis EA diagramu 'Úložna - Domain model' (Ulozna-DomainModel.ea.png). Nahradí ho XMI export.",
+  "source": {
+    "kind": "EA-diagram-transcript",
+    "diagram": "class Úložna - Domain model",
+    "file": "Ulozna-DomainModel.ea.png"
+  },
+  "classes": [
+    {
+      "name": "Dokument",
+      "attributes": [
+        {
+          "name": "kód účetní jednotky",
+          "type": "string",
+          "length": 10,
+          "multiplicity": "1"
+        },
+        {
+          "name": "id",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "datum vyřízení",
+          "type": "date",
+          "multiplicity": "1"
+        },
+        {
+          "name": "datum uložení",
+          "type": "date",
+          "multiplicity": "1"
+        },
+        {
+          "name": "id dokladu",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "číslo dokladu",
+          "type": "string",
+          "multiplicity": "1"
+        },
+        {
+          "name": "typ dokumentu",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "typ dokumentu - název",
+          "type": "string",
+          "length": 255,
+          "multiplicity": "1"
+        },
+        {
+          "name": "typ dokumentu - označení",
+          "type": "string",
+          "length": 255,
+          "multiplicity": "1"
+        },
+        {
+          "name": "název",
+          "type": "string",
+          "length": 1000,
+          "multiplicity": "1"
+        },
+        {
+          "name": "subjekt",
+          "type": "string",
+          "length": 500,
+          "multiplicity": "1"
+        },
+        {
+          "name": "id položky SSP",
+          "type": "int",
+          "multiplicity": "0..1"
+        },
+        {
+          "name": "popis",
+          "type": "string",
+          "length": 4000,
+          "multiplicity": "1"
+        },
+        {
+          "name": "spisový znak",
+          "type": "string",
+          "length": 30,
+          "multiplicity": "1"
+        },
+        {
+          "name": "skartační znak",
+          "type": "string",
+          "length": 1,
+          "multiplicity": "1"
+        },
+        {
+          "name": "skartační lhůta",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "trvalý skartační souhlas",
+          "type": "bool",
+          "multiplicity": "1"
+        },
+        {
+          "name": "uložil",
+          "type": "string",
+          "length": 60,
+          "multiplicity": "1"
+        }
+      ],
+      "constraints": [
+        {
+          "raw": "{if trvalý-skart-souhlas == true then skartační-znak = S}",
+          "kind": "Implication"
+        },
+        {
+          "raw": "{UQ: kód účetní jednotky, id dokladu}",
+          "kind": "UniqueKey"
+        }
+      ],
+      "notes": [
+        "metadata? jaká metadata ještě sem doplníme?",
+        "hash nebo p7s? uložit přímo nebo jako blob?"
+      ]
+    },
+    {
+      "name": "Soubor",
+      "attributes": [
+        {
+          "name": "kód účetní jednotky",
+          "type": "string",
+          "length": 10,
+          "multiplicity": "1"
+        },
+        {
+          "name": "id",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "typ",
+          "type": "string",
+          "length": 2,
+          "multiplicity": "1"
+        },
+        {
+          "name": "id dokumentu",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "BlobKey",
+          "type": "string",
+          "length": 256,
+          "multiplicity": "1"
+        },
+        {
+          "name": "název",
+          "type": "string",
+          "length": 255,
+          "multiplicity": "1"
+        },
+        {
+          "name": "název souboru",
+          "type": "string",
+          "length": 255,
+          "multiplicity": "1"
+        },
+        {
+          "name": "blob je uložen",
+          "type": "bool",
+          "multiplicity": "1",
+          "default": false
+        }
+      ],
+      "notes": [
+        "PAdES, XAdES, CAdES, JAdES"
+      ]
+    },
+    {
+      "name": "Položka SSP",
+      "attributes": [
+        {
+          "name": "kód účetní jednotky",
+          "type": "string",
+          "length": 10,
+          "multiplicity": "1"
+        },
+        {
+          "name": "id",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "id spisového a skartačního plánu",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "spisový znak",
+          "type": "string",
+          "length": 30,
+          "multiplicity": "1"
+        },
+        {
+          "name": "název",
+          "type": "string",
+          "length": 300,
+          "multiplicity": "1"
+        },
+        {
+          "name": "skartační znak",
+          "type": "string",
+          "length": 1,
+          "multiplicity": "1"
+        },
+        {
+          "name": "skartační lhůta",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "trvalý skartační souhlas",
+          "type": "bool",
+          "multiplicity": "1"
+        }
+      ]
+    },
+    {
+      "name": "Spisový a skartační plán",
+      "attributes": [
+        {
+          "name": "kód účetní jednotky",
+          "type": "string",
+          "length": 10,
+          "multiplicity": "1"
+        },
+        {
+          "name": "id",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "platný od",
+          "type": "date",
+          "multiplicity": "1"
+        },
+        {
+          "name": "platný do",
+          "type": "date",
+          "multiplicity": "1"
+        },
+        {
+          "name": "vytvořil",
+          "type": "string",
+          "length": 60,
+          "multiplicity": "1"
+        }
+      ]
+    },
+    {
+      "name": "Typ dokumentu",
+      "attributes": [
+        {
+          "name": "kód účetní jednotky",
+          "type": "string",
+          "length": 10,
+          "multiplicity": "1"
+        },
+        {
+          "name": "id",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "id položky ssp",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "id typu dokumentu CRO",
+          "type": "int",
+          "multiplicity": "1"
+        },
+        {
+          "name": "název",
+          "type": "string",
+          "length": 255,
+          "multiplicity": "1"
+        },
+        {
+          "name": "označení",
+          "type": "string",
+          "length": 255,
+          "multiplicity": "1"
+        }
+      ]
+    },
+    {
+      "name": "Blob Storage",
+      "external": true
+    },
+    {
+      "name": "Doklad",
+      "namespace": "CRO",
+      "external": true,
+      "attributes": [
+        {
+          "name": "datum vyřízení",
+          "type": "date",
+          "multiplicity": "0..1"
+        },
+        {
+          "name": "datum uložení",
+          "type": "date",
+          "multiplicity": "0..1"
+        },
+        {
+          "name": "spisový znak",
+          "type": "string",
+          "length": 30,
+          "multiplicity": "0..1"
+        },
+        {
+          "name": "název položky SSP",
+          "type": "string",
+          "length": 300,
+          "multiplicity": "0..1"
+        },
+        {
+          "name": "skartační znak",
+          "type": "string",
+          "length": 1,
+          "multiplicity": "0..1"
+        },
+        {
+          "name": "skartační lhůta",
+          "type": "int",
+          "multiplicity": "0..1"
+        },
+        {
+          "name": "trvalý skartační souhlas",
+          "type": "bool",
+          "multiplicity": "1",
+          "default": false
+        }
+      ],
+      "constraints": [
+        {
+          "raw": "{if trvalý-skart-souhlas == true then skartační-znak = S}",
+          "kind": "Implication"
+        }
+      ]
+    },
+    {
+      "name": "Priloha",
+      "namespace": "CRO",
+      "external": true,
+      "attributes": [
+        {
+          "name": "název",
+          "type": "string",
+          "multiplicity": "1"
+        },
+        {
+          "name": "název uživatelský",
+          "type": "string",
+          "multiplicity": "1"
+        },
+        {
+          "name": "přesouvat do úložny",
+          "type": "int",
+          "multiplicity": "0..1"
+        }
+      ]
+    },
+    {
+      "name": "TypDokumentu",
+      "namespace": "CRO",
+      "external": true
+    }
+  ],
+  "enumerations": [
+    {
+      "name": "Typ souboru",
+      "literals": [
+        {
+          "code": "HD",
+          "text": "Hlavní dokument"
+        },
+        {
+          "code": "AS",
+          "text": "Auditní stopa"
+        },
+        {
+          "code": "PR",
+          "text": "Příloha"
+        }
+      ]
+    },
+    {
+      "name": "Skartační znak",
+      "literals": [
+        {
+          "code": "A",
+          "text": "archivace"
+        },
+        {
+          "code": "S",
+          "text": "skartace"
+        },
+        {
+          "code": "V",
+          "text": "výběr"
+        }
+      ]
+    },
+    {
+      "name": "Způsob přesunu do úložny",
+      "namespace": "CRO",
+      "external": true,
+      "literals": [
+        {
+          "text": "Ne"
+        },
+        {
+          "text": "Ano, jako hlavní dokument"
+        },
+        {
+          "text": "Ano, jako přílohu"
+        }
+      ]
+    }
+  ],
+  "associations": [
+    {
+      "from": "Dokument",
+      "to": "Soubor",
+      "kind": "association",
+      "navigable": "to",
+      "fromMult": "1",
+      "toMult": "1..*"
+    },
+    {
+      "from": "Soubor",
+      "to": "Typ souboru",
+      "kind": "association",
+      "navigable": "to",
+      "toMult": "0..*",
+      "$comment": "multiplicita u šipky 0..* – pravděpodobně chyba diagramu"
+    },
+    {
+      "from": "Soubor",
+      "to": "Blob Storage",
+      "kind": "association",
+      "navigable": "to",
+      "toMult": "1"
+    },
+    {
+      "from": "Dokument",
+      "to": "Položka SSP",
+      "kind": "association",
+      "navigable": "to",
+      "fromMult": "0..*",
+      "toMult": "0..1"
+    },
+    {
+      "from": "Spisový a skartační plán",
+      "to": "Položka SSP",
+      "kind": "composition",
+      "navigable": "to",
+      "fromMult": "1",
+      "toMult": "0..*"
+    },
+    {
+      "from": "Položka SSP",
+      "to": "Typ dokumentu",
+      "kind": "association",
+      "navigable": "to",
+      "fromMult": "1",
+      "toMult": "0..*"
+    },
+    {
+      "from": "Dokument",
+      "to": "CRO:Doklad",
+      "kind": "dependency",
+      "label": "weak ref: id CRO, číslo CRO"
+    },
+    {
+      "from": "CRO:Doklad",
+      "to": "Položka SSP",
+      "kind": "dependency",
+      "label": "weak ref: spisový znak"
+    },
+    {
+      "from": "Typ dokumentu",
+      "to": "CRO:TypDokumentu",
+      "kind": "dependency",
+      "label": "weak ref: idTYP_DOKUMENTU"
+    },
+    {
+      "from": "CRO:Doklad",
+      "to": "CRO:Priloha",
+      "kind": "aggregation",
+      "label": "vazba přes PP_PRACOVNI_POSTUPY_BEHY.idGW"
+    },
+    {
+      "from": "CRO:Priloha",
+      "to": "CRO:Způsob přesunu do úložny",
+      "kind": "association",
+      "fromMult": "0..*",
+      "toMult": "0..1"
+    }
+  ],
+  "conceptual": [
+    "Spisovna",
+    "Archiv",
+    "Úložna",
+    "Vybrané pojmy CRO/CFI/Spisovna",
+    "Vztah mezi základními entitami úložny",
+    "Spisový a skartační plán (pojem)"
+  ],
+  "diagramNotes": [
+    "šipky jsou navigační",
+    "Propočet kapacity souborového úložiště (mimo testy)"
+  ]
+}
