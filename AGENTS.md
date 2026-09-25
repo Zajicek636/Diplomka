@@ -19,6 +19,8 @@ Cílem je nástroj (Roslyn), který:
 
 **Fáze 1 (aktuální): doménové unit testy** – entity, agregáty, doménové služby (`*Manager`).
 
+Postup vývoje: nejdřív na **`TestGenerator.Sample`** (E-shop) (malé, veřejné NuGety, známý gold) → pak **Úložna** (reálný modul, privátní feed, `CustomCheck`) → pak další moduly CFI.
+
 ---
 
 ## 2. Repozitář a pracovní složky
@@ -37,32 +39,34 @@ Poznámky k Úložně:
 - `appsettings.secrets.json` a connection stringy **nečíst, nekopírovat, necitovat**.
 - Existující ruční testy (`test/Dynatech.Ulozna.Domain.Tests`, `test/Dynatech.Ulozna.Application.Tests`) jsou **baseline pro porovnání** – generátor je nesmí přepsat. Generované testy jdou do samostatné složky/projektu (viz §7).
 
-Navržená struktura tohoto repozitáře:
+Struktura tohoto repozitáře:
 
 ```
 /AGENTS.md
-/README.md
 /docs/
   thesis/            # text práce (kapitoly, poznámky z rešerše)
   decisions/         # ADR – jedno rozhodnutí = jeden soubor (0001-*.md)
-  input-samples/     # ukázkové vstupy z EA (XMI) a textové analýzy
-/src/
-  TestGen.sln
-  TestGen.Core/              # datový model: DomainModel, CodeModel, TestIntent
-  TestGen.Input.EA/          # parser XMI exportu z Enterprise Architectu
-  TestGen.Input.Text/        # parser méně strukturované analýzy (Markdown/YAML)
-  TestGen.Analysis.Roslyn/   # načtení řešení, extrakce faktů z kódu
-  TestGen.Linking/           # párování analýza ↔ kód, tvorba TestIntentů
-  TestGen.Generation/        # generátory testů (profily konvencí), výstup C#
-  TestGen.Llm/               # (volitelné) LLM obohacení nejednoznačných scénářů
-  TestGen.Cli/               # konzolová aplikace – vstupní bod
-/tests/
-  TestGen.*.Tests/           # testy samotného nástroje (xUnit)
+  input-samples/     # vstupy z EA (přepisy diagramů, později XMI) – Úložna
+/TestGenerator/
+  TestGenerator.sln
+  TestGenerator/             # jádro (netstandard2.0, Roslyn komponenta) – viz TestGenerator/Readme.md
+    Model/                   #   AnalysisModel
+    Analysis/                #   čtení *.analysis.json (později XMI, text)
+    Naming/                  #   párování českých jmen analýzy na identifikátory
+    Code/                    #   extrakce doménových typů a pravidel ze sémantického modelu
+    Linking/                 #   TestIntent + stavy Confirmed/Conflict/AnalysisOnly/CodeOnly/Ambiguous
+    Diagnostics/             #   analyzer → diagnostiky TG0001–TG0005 při buildu
+    Generation/              #   TestPlan (plán testů) → profily (ITestProfile) → GeneratedFile
+      Profiles/              #   generic (xUnit+Shouldly), fakeentity (TestHelper)
+  TestGenerator.Cli/         # `testgen` – MSBuildWorkspace, zápis testů + testgen.manifest.json
+  TestGenerator.Sample/      # ukázková ABP doména E-shop (3 agregáty) + analysis/ (A, B, gold)
+  TestGenerator.Sample.Tests/# cíl generování (Generated/Generic, Generated/FakeEntity); TestHelper přes $(CfiRoot)
+  TestGenerator.Tests/       # testy jádra (xUnit + Shouldly, in-memory kompilace se stuby ABP)
 /experiments/
   ulozna/                    # konfigurace běhu, vygenerované výstupy, výsledky měření
 ```
 
-> Současný `TestGenerator/` je šablona Roslyn **analyzeru** (netstandard2.0, `SampleSyntaxAnalyzer` apod.). Pro generátor testů je vhodnější **konzolová aplikace na .NET 8 s `MSBuildWorkspace`** (viz Rozhodnutí R1). Šablonu buď smazat, nebo ponechat jen jako budoucí rozšíření (analyzer/code-fix „vygeneruj test“ v IDE).
+Cílové rozšíření (až bude potřeba): `TestGenerator.Llm` pro hybridní režim.
 
 ---
 
@@ -207,9 +211,25 @@ Známé chyby/podezření v kódu, které mají testy odhalit (pro kapitolu vyho
 
 ---
 
-## 7. Konvence generovaných testů (profil „Dynatech/Úložna“)
+## 7. Konvence generovaných testů – profily
 
-Generátor musí umět **profily konvencí**; první profil kopíruje styl existujících testů Úložny:
+Generátor má **vyměnitelné profily** (`ITestProfile`, registrace v `ProfileRegistry`, volba `--profile a,b|all`). Všechny profily vycházejí ze stejného `EntityTestPlan` (konstruktor, parametry, pravidla, vzorové hodnoty) – liší se jen výstupem.
+
+| Profil | Výstup | Závislosti |
+|---|---|---|
+| `generic` | `Generic/<Entita>Tests.cs` – vnořená třída `Data` s platnými hodnotami, `[Theory]` s délkami (`-1` = null) | xUnit, Shouldly |
+| `fakeentity` | `FakeEntity/FakeEntities/Fake<Entita>.cs` (`IFakeEntity<T>`, konstanty `*MaxLength`, `CreateOriginalEntity`, `CheckIfSame`), `Generators/RandomFakeEntityGenerator.cs`, `<Entita>_Tests.cs` s `PropertyTester` + `TestSetProperty<T, TException>` | TestHelper (vlastní, v CFI `src/framework/TestHelper`), xUnit, Shouldly |
+| *(další)* | např. `dynatech-ulozna` (Converter/Comparator jako partial třídy, reuse existujících Fake), NUnit, FluentAssertions | – |
+
+Společná pravidla pro všechny profily:
+
+- Platné hodnoty: řetězec podle tvaru z regexu v kódu (`Email`, `Digits{n}`, `[A-Z…]+`, jinak `A…`), Guid/čísla/datum konstantní (`generic`) nebo z `RandomGenerator` (`fakeentity`), enum = první hodnota, hodnotový objekt/entita = rekurzivně přes její konstruktor.
+- Cesta testu: přes konstruktor (parametr se jménem vlastnosti), jinak přes jednoparametrovou metodu, ve které je kontrola (např. `Zrusit(duvod)`).
+- Očekávaná výjimka: `Check.*` → `ArgumentException`, `CustomCheck.*` → `UserFriendlyException`, bez pravidla v kódu → `Exception`.
+- `Ambiguous` / neznámý formát → `[Fact(Skip = "…")]` s důvodem (kandidát na LLM).
+- Chybějící člen (`AnalysisOnly`) → test přes reflexi (projekt se vždy zkompiluje).
+
+Profil `fakeentity` kopíruje styl existujících testů Úložny:
 
 - xUnit (`[Fact]`, `[Theory]`, `[InlineData]`, `[MemberData]`), Shouldly, NSubstitute.
 - Interní knihovna `TestHelper` (framework mono-repa): `PropertyTester.GetStringPropertyTestData`, `IFakeEntity<T>`, `TestSetProperty`, `CheckIfSame`.
@@ -259,7 +279,7 @@ Cíl: generátor jde „zapnout“ v libovolném ABP modulu bez úprav kódu ná
 - **Konfigurace per modul**: volitelný `testgen.json` vedle `.sln` (přepisuje výchozí hodnoty):
   ```jsonc
   {
- [Dokument.analysis.json](docs/input-samples/ulozna/variant-A/Dokument.analysis.json)   "solution": "Dynatech.Ulozna.sln",
+    "solution": "Dynatech.Ulozna.sln",
     "analysis": ["docs/ea/Ulozna.xmi"],
     "profile": "dynatech",
     "layers": ["domain"],
@@ -294,10 +314,14 @@ Porovnání: (a) ruční testy Úložny, (b) TestGen varianta A, (c) TestGen var
 - Komunikace a dokumentace **česky**; kód, identifikátory nástroje a commit zprávy **anglicky** (doménová jména z Úložny ponechat).
 - Nesahat do složky Úložny (pouze čtení). Žádné tajné údaje do repozitáře.
 - Před větší změnou: navrhnout postup, u architektonických rozhodnutí vytvořit ADR v `docs/decisions/`.
-- Každý nový detektor / pravidlo = unit test v `tests/` nad malým vzorkem kódu (inline string → `CSharpSyntaxTree.ParseText`).
-- Build a testy: `dotnet build src/TestGen.sln`, `dotnet test`. Před commitem musí projít.
-- Běh nástroje (cílový tvar CLI):
-  `dotnet run --project src/TestGen.Cli -- --solution <cesta.sln> --analysis <model.xmi|analyza.md> --layer domain --profile dynatech --out experiments/ulozna/out`
+- Každý nový detektor / pravidlo = unit test v `TestGenerator.Tests` nad malým vzorkem kódu (`TestCompilation.Create(source)` se stuby ABP).
+- Jádro (`TestGenerator/TestGenerator`) je **netstandard2.0** (podmínka pro Roslyn komponenty): žádné `record`/`init`, `ToHashSet`, `string.Contains(char)` apod.; Roslyn `Microsoft.CodeAnalysis.CSharp` 4.3.0; JSON přes `System.Text.Json` (PrivateAssets).
+- Build a testy: `dotnet build TestGenerator/TestGenerator.sln`, `dotnet test TestGenerator/TestGenerator.sln`. Před commitem musí projít.
+- Zapojení do cílového projektu: `ProjectReference` na `TestGenerator.csproj` s `OutputItemType="Analyzer" ReferenceOutputAssembly="false"` + `<AdditionalFiles Include="…/*.analysis.json" />`.
+- Generování (z adresáře repozitáře): `dotnet run --project TestGenerator/TestGenerator.Cli -- --project <domain.csproj> --analysis <x.analysis.json> --profile generic,fakeentity --namespace <Ns>.Tests --out <testovací projekt>/Generated` (podrobně `TestGenerator.Sample.Tests/README.md`). `Generated/` je celé generované – ručně neupravovat.
+- CLI (`TestGenerator.Cli`) je net10 s Roslyn 4.14 (`MSBuildWorkspace`); jádro zůstává na Roslyn 4.3 (kvůli analyzeru) – API jádra držet kompatibilní s 4.3.
+- `TestGenerator/Directory.Build.rsp` přepíná restore na nuget.org (`RestoreSources`). TestHelper leží v CFI, jehož `NuGet.Config` obsahuje privátní feedy s ověřením (`%PAT_TOKEN%`); TestHelper sám potřebuje jen veřejné balíčky. Rider/VS `.rsp` nečtou → v IDE nastavit `PAT_TOKEN` nebo jednou `dotnet restore`.
+- Ladění analyzeru: profil `DebugRoslynAnalyzers` (`TestGenerator/Properties/launchSettings.json`) cílí na `TestGenerator.Sample`.
 - Po dokončení kroku aktualizovat checklist v §12.
 
 ---
@@ -305,9 +329,17 @@ Porovnání: (a) ruční testy Úložny, (b) TestGen varianta A, (c) TestGen var
 ## 12. Roadmapa
 
 - [x] F0 – Ukázkový vstup: celý EA doménový model Úložny + ruční přepis do AnalysisModel + gold mapování (`docs/input-samples/ulozna/variant-A/Ulozna.*`)
-- [ ] F0 – Rozhodnout osud šablony `TestGenerator/`, založit `src/TestGen.sln` se strukturou z §2
+- [x] F0 – Ukázková doména E-shop v `TestGenerator.Sample` (Zákazník+Adresa, Produkt+Manager, Objednávka+Položky) s analýzou A/B a gold (31 pravidel, 4 záměrně padající)
+- [x] F0 – Šablona analyzeru vyčištěna, jádro v `TestGenerator` (R1)
+- [x] F1 – Model analýzy + čtení JSON, párování jmen, extrakce textových pravidel (`Check.*`, `CustomCheck.*`, vlastní guardy), linker, analyzer TG0001–TG0005, testy jádra
+- [x] F1 – Build ověřen: Sample hlásí TG0002 (Zakaznik.Email 256×200) a TG0003 (Produkt.hmotnost) dle očekávání
+- [ ] F1 – Ověřit `dotnet test TestGenerator/TestGenerator.sln` (NameMatcherTests, LinkerTests)
 - [ ] F0 – Ověřit načtení Úložny přes `MSBuildWorkspace` (v kontextu celého mono-repa) a vypsat diagnostiku
-- [ ] F1 – `TestGen.Core`: AnalysisModel, CodeModel, TestIntent + JSON serializace
+- [ ] F1 – Serializace TestIntentů do JSON (report)
+- [ ] F1 – Detektory: číselné rozsahy, regex/formát, kolekce (unikátnost, max. počet), odebrání neexistujícího, stavové přechody (matice stav × akce), doménové služby
+- [x] F1 – Generování testů: `EntityTestPlan`, profily `generic` a `fakeentity`, CLI `testgen`, projekt `TestGenerator.Sample.Tests`, testy generování (kompilace vygenerovaného kódu)
+- [x] F1 – Ověřeno 27. 9. 2026: jádro 27/27; CLI nad Sample → 12 záměrů, 16 souborů; `TestGenerator.Sample.Tests` 70 testů = 62 ✓, 4 skip (Ambiguous IČO/PSČ), 4 ✗ očekávaně (E02, E15 v obou profilech)
+- [ ] F1 – Profil `fakeentity` nad Úložnou: znovupoužít existující `Fake*`/`Converter`/`Comparator` místo generování
 - [ ] F1 – `Analysis.Roslyn`: detektory D1–D6 nad entitami Úložny
 - [ ] F1 – Připravit EA model Úložny (varianta A) a textový popis (varianta B)
 - [ ] F1 – `Input.EA`: nejdřív loader AnalysisModel JSON, pak parser XMI (třídy, atributy, constrainty)
@@ -326,7 +358,7 @@ Porovnání: (a) ruční testy Úložny, (b) TestGen varianta A, (c) TestGen var
 
 ## 13. Rozhodnutí
 
-- **R1** (návrh): Nástroj je konzolová aplikace .NET 8 s `MSBuildWorkspace`, ne Roslyn analyzer/source generator. Důvod: potřebujeme celé řešení, externí vstup (XMI) a zápis souborů mimo kompilaci. Analyzer může být pozdější rozšíření pro IDE.
+- **R1** (revidováno): Jádro je Roslyn komponenta v projektu `TestGenerator` (netstandard2.0) s API nad `Compilation` + `AnalysisModel` → `TestIntent`. První hostitel je **analyzer** (diagnostiky shody analýzy a kódu při každém buildu, v IDE i v CI). Zápis testových souborů analyzer neumí → druhý hostitel (CLI s `MSBuildWorkspace` nebo code fix) nad stejným jádrem.
 - **R2** (návrh): Vstup z EA přes XMI 2.1 export, ne přes EA COM API (přenositelnost, běh bez EA).
 - **R3** (návrh): Deterministické jádro, LLM volitelně (§8).
 - **R4** (návrh): Distribuce jako `dotnet tool` + `testgen.json` per modul, organizační profil sdílený (§9a).

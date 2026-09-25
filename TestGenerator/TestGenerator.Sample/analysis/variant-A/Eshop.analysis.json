@@ -1,0 +1,397 @@
+{
+  "$comment": "Ukázková analýza (varianta A – strukturovaná, jako by šla z EA). Obsahuje záměrné rozpory s kódem – viz ../Eshop.gold.md.",
+  "source": {
+    "kind": "EA-like",
+    "diagram": "class Eshop - Domain model"
+  },
+  "classes": [
+    {
+      "name": "Zákazník",
+      "stereotype": "AggregateRoot",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "guid",
+          "multiplicity": "1"
+        },
+        {
+          "name": "jméno",
+          "type": "string",
+          "length": 200,
+          "multiplicity": "1"
+        },
+        {
+          "name": "e-mail",
+          "type": "string",
+          "length": 256,
+          "multiplicity": "1"
+        },
+        {
+          "name": "IČO",
+          "type": "string",
+          "length": 8,
+          "multiplicity": "0..1",
+          "pattern": "^\\d{8}$"
+        },
+        {
+          "name": "úvěrový limit",
+          "type": "decimal",
+          "multiplicity": "1",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "name": "adresa",
+          "type": "Adresa",
+          "multiplicity": "1"
+        },
+        {
+          "name": "je aktivní",
+          "type": "bool",
+          "multiplicity": "1",
+          "default": true
+        }
+      ],
+      "constraints": [
+        {
+          "raw": "{e-mail ve formátu x@y.z}",
+          "kind": "Pattern"
+        },
+        {
+          "raw": "{úvěrový limit >= 0}",
+          "kind": "Range"
+        }
+      ]
+    },
+    {
+      "name": "Adresa",
+      "stereotype": "ValueObject",
+      "attributes": [
+        {
+          "name": "ulice",
+          "type": "string",
+          "length": 200,
+          "multiplicity": "1"
+        },
+        {
+          "name": "město",
+          "type": "string",
+          "length": 100,
+          "multiplicity": "1"
+        },
+        {
+          "name": "PSČ",
+          "type": "string",
+          "length": 5,
+          "multiplicity": "1",
+          "pattern": "^\\d{5}$"
+        }
+      ]
+    },
+    {
+      "name": "Produkt",
+      "stereotype": "AggregateRoot",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "guid",
+          "multiplicity": "1"
+        },
+        {
+          "name": "kód",
+          "type": "string",
+          "length": 20,
+          "multiplicity": "1",
+          "pattern": "^[A-Z0-9-]+$"
+        },
+        {
+          "name": "název",
+          "type": "string",
+          "length": 200,
+          "multiplicity": "1"
+        },
+        {
+          "name": "cena",
+          "type": "decimal",
+          "multiplicity": "1"
+        },
+        {
+          "name": "sazba DPH",
+          "type": "Sazba DPH",
+          "multiplicity": "1"
+        },
+        {
+          "name": "hmotnost",
+          "type": "decimal",
+          "multiplicity": "0..1",
+          "min": 0
+        },
+        {
+          "name": "je aktivní",
+          "type": "bool",
+          "multiplicity": "1",
+          "default": true
+        }
+      ],
+      "constraints": [
+        {
+          "raw": "{cena > 0}",
+          "kind": "Range"
+        },
+        {
+          "raw": "{hmotnost >= 0}",
+          "kind": "Range"
+        },
+        {
+          "raw": "{UQ: kód}",
+          "kind": "UniqueKey"
+        }
+      ]
+    },
+    {
+      "name": "Objednávka",
+      "stereotype": "AggregateRoot",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "guid",
+          "multiplicity": "1"
+        },
+        {
+          "name": "číslo",
+          "type": "string",
+          "length": 20,
+          "multiplicity": "1"
+        },
+        {
+          "name": "id zákazníka",
+          "type": "guid",
+          "multiplicity": "1"
+        },
+        {
+          "name": "datum vytvoření",
+          "type": "datetime",
+          "multiplicity": "1"
+        },
+        {
+          "name": "stav",
+          "type": "Stav objednávky",
+          "multiplicity": "1",
+          "default": "Nová"
+        },
+        {
+          "name": "důvod zrušení",
+          "type": "string",
+          "length": 500,
+          "multiplicity": "0..1"
+        },
+        {
+          "name": "celková cena",
+          "type": "decimal",
+          "multiplicity": "1",
+          "derived": true
+        }
+      ],
+      "constraints": [
+        {
+          "raw": "{celková cena = sum(položky.cena)}",
+          "kind": "Derived"
+        },
+        {
+          "raw": "{počet položek <= 50}",
+          "kind": "Range"
+        },
+        {
+          "raw": "{položky lze měnit jen ve stavu Nová}",
+          "kind": "Precondition"
+        },
+        {
+          "raw": "{potvrdit lze jen s alespoň 1 položkou}",
+          "kind": "Precondition"
+        }
+      ]
+    },
+    {
+      "name": "Položka objednávky",
+      "stereotype": "Entity",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "guid",
+          "multiplicity": "1"
+        },
+        {
+          "name": "id produktu",
+          "type": "guid",
+          "multiplicity": "1"
+        },
+        {
+          "name": "název produktu",
+          "type": "string",
+          "length": 200,
+          "multiplicity": "1"
+        },
+        {
+          "name": "jednotková cena",
+          "type": "decimal",
+          "multiplicity": "1"
+        },
+        {
+          "name": "množství",
+          "type": "int",
+          "multiplicity": "1",
+          "min": 1,
+          "max": 999
+        },
+        {
+          "name": "cena",
+          "type": "decimal",
+          "multiplicity": "1",
+          "derived": true
+        }
+      ],
+      "constraints": [
+        {
+          "raw": "{jednotková cena > 0}",
+          "kind": "Range"
+        },
+        {
+          "raw": "{cena = jednotková cena * množství}",
+          "kind": "Derived"
+        }
+      ]
+    }
+  ],
+  "enumerations": [
+    {
+      "name": "Stav objednávky",
+      "literals": [
+        {
+          "code": "Nova",
+          "text": "Nová"
+        },
+        {
+          "code": "Potvrzena",
+          "text": "Potvrzená"
+        },
+        {
+          "code": "Odeslana",
+          "text": "Odeslaná"
+        },
+        {
+          "code": "Dorucena",
+          "text": "Doručená"
+        },
+        {
+          "code": "Zrusena",
+          "text": "Zrušená"
+        }
+      ]
+    },
+    {
+      "name": "Sazba DPH",
+      "literals": [
+        {
+          "code": "0",
+          "text": "nulová"
+        },
+        {
+          "code": "12",
+          "text": "snížená"
+        },
+        {
+          "code": "21",
+          "text": "základní"
+        }
+      ]
+    }
+  ],
+  "associations": [
+    {
+      "from": "Objednávka",
+      "to": "Položka objednávky",
+      "kind": "composition",
+      "fromMult": "1",
+      "toMult": "0..50"
+    },
+    {
+      "from": "Objednávka",
+      "to": "Zákazník",
+      "kind": "association",
+      "label": "ref: id zákazníka",
+      "fromMult": "0..*",
+      "toMult": "1"
+    },
+    {
+      "from": "Položka objednávky",
+      "to": "Produkt",
+      "kind": "association",
+      "label": "ref: id produktu",
+      "fromMult": "0..*",
+      "toMult": "1"
+    },
+    {
+      "from": "Zákazník",
+      "to": "Adresa",
+      "kind": "composition",
+      "fromMult": "1",
+      "toMult": "1"
+    }
+  ],
+  "stateMachines": [
+    {
+      "class": "Objednávka",
+      "attribute": "stav",
+      "initial": "Nová",
+      "transitions": [
+        {
+          "from": "Nová",
+          "to": "Potvrzená",
+          "trigger": "potvrdit",
+          "guard": "počet položek >= 1"
+        },
+        {
+          "from": "Potvrzená",
+          "to": "Odeslaná",
+          "trigger": "odeslat"
+        },
+        {
+          "from": "Odeslaná",
+          "to": "Doručená",
+          "trigger": "doručit"
+        },
+        {
+          "from": "Nová",
+          "to": "Zrušená",
+          "trigger": "zrušit",
+          "guard": "důvod vyplněn"
+        },
+        {
+          "from": "Potvrzená",
+          "to": "Zrušená",
+          "trigger": "zrušit",
+          "guard": "důvod vyplněn"
+        }
+      ],
+      "final": [
+        "Doručená",
+        "Zrušená"
+      ]
+    }
+  ],
+  "domainServices": [
+    {
+      "name": "Správa produktů",
+      "operations": [
+        {
+          "name": "vytvořit produkt",
+          "rule": "kód produktu je unikátní"
+        },
+        {
+          "name": "změnit kód produktu",
+          "rule": "nový kód je unikátní"
+        }
+      ]
+    }
+  ]
+}

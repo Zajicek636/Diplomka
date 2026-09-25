@@ -1,29 +1,19 @@
-# Roslyn Analyzers Sample
+# TestGenerator
 
-A set of three sample projects that includes Roslyn analyzers with code fix providers. Enjoy this template to learn from and modify analyzers for your own needs.
+Jádro nástroje TestGen jako Roslyn komponenta (netstandard2.0). Viz `AGENTS.md` v kořeni repozitáře.
 
-## Content
-### TestGenerator
-A .NET Standard project with implementations of sample analyzers and code fix providers.[AGENTS.md](../../AGENTS.md)
-**You must build this project to see the results (warnings) in the IDE.**[.gitignore](../../.gitignore)
+- `Model/` – AnalysisModel (vstup z EA / JSON).
+- `Analysis/` – čtení `*.analysis.json`.
+- `Naming/` – normalizace a párování českých jmen z analýzy na identifikátory v kódu.
+- `Code/` – extrakce doménových typů a pravidel ze sémantického modelu (`Volo.Abp.Check`, `CustomCheck`, vlastní guardy).
+- `Linking/` – spojení analýzy a kódu do `TestIntent` se stavem Confirmed / Conflict / AnalysisOnly / CodeOnly / Ambiguous.
+- `Diagnostics/` – analyzer, který intenty hlásí jako diagnostiky `TG0001`–`TG0005` při buildu projektu, který má analýzu v `AdditionalFiles`.
 
-- [SampleSemanticAnalyzer.cs](SampleSemanticAnalyzer.cs): An analyzer that reports invalid values used for the `speed` parameter of the `SetSpeed` function.
-- [SampleSyntaxAnalyzer.cs](SampleSyntaxAnalyzer.cs): An analyzer that reports the company name used in class definitions.
-- [SampleCodeFixProvider.cs](SampleCodeFixProvider.cs): A code fix that renames classes with company name in their definition. The fix is linked to [SampleSyntaxAn[.gitignore](../../.gitignore)alyzer.cs](SampleSyntaxAnalyzer.cs).
+Použití v cílovém projektu:
 
-### TestGenerator.Sample
-A project that references the sample analyzers. Note the parameters of `ProjectReference` in [TestGenerator.Sample.csproj](../TestGenerator.Sample/TestGenerator.Sample.csproj), they make sure that the project is referenced as a set of analyzers. 
-
-### TestGenerator.Tests
-Unit tests for the sample analyzers and code fix provider. The easiest way to develop language-related features is to start with unit tests.
-
-## How To?
-### How to debug?
-- Use the [launchSettings.json](Properties/launchSettings.json) profile.
-- Debug tests.
-
-### How can I determine which syntax nodes I should expect?
-Consider using the Roslyn Visualizer tool window, which allows you to observe the syntax tree.
-
-### Learn more about wiring analyzers
-The complete set of information is available at [roslyn github repo wiki](https://github.com/dotnet/roslyn/blob/main/docs/wiki/README.md).
+```xml
+<ItemGroup>
+  <ProjectReference Include="..\TestGenerator\TestGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  <AdditionalFiles Include="analysis\variant-A\*.analysis.json" />
+</ItemGroup>
+```
